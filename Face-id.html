@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Код для входу</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(180deg, #b8d8f0 0%, #d8e8e0 50%, #dbe8cd 100%);
+      color: #000;
+      overflow: hidden;
+    }
+
+    /* --- ЭКРАН ПРИВЕТСТВИЯ (SPLASH SCREEN С КАРТИНКОЙ) --- */
+    .welcome-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 10;
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+      background-color: #000; /* Подложка на случай загрузки */
+    }
+
+    .welcome-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .welcome-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* Растягивает скриншот на весь экран без искажений */
+      display: block;
+    }
+
+    /* --- ОСНОВНОЙ ЭКРАН ВВОДА КОДА --- */
+    .pin-container {
+      width: 100%;
+      max-width: 360px;
+      height: 100vh;
+      max-height: 800px;
+      padding: 60px 24px 30px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      opacity: 0;
+      transform: scale(0.98);
+      transition: opacity 0.5s ease, transform 0.5s ease, filter 0.25s ease;
+    }
+
+    .pin-container.visible {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .pin-container.blurred {
+      filter: blur(8px);
+      pointer-events: none;
+    }
+
+    .header-title {
+      font-size: 22px;
+      font-weight: 500;
+      letter-spacing: -0.3px;
+      margin-top: 40px;
+    }
+
+    /* ИНДИКАТОРЫ ВВОДА (ТОЧКИ) */
+    .dots-container {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.6);
+      transition: background-color 0.15s, transform 0.15s;
+    }
+
+    .dot.filled {
+      background-color: #000000;
+      transform: scale(1.1);
+    }
+
+    /* ЦИФРОВАЯ КЛАВИАТУРА */
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px 24px;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .key-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.85);
+      border: none;
+      font-size: 28px;
+      font-weight: 400;
+      color: #000000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto;
+      cursor: pointer;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.05s;
+    }
+
+    /* Мгновенное чернение при касании */
+    .key-btn.pressed {
+      background-color: #000000 !important;
+      color: #000000 !important;
+      transform: scale(0.95);
+    }
+
+    .action-btn {
+      background: transparent;
+    }
+
+    .action-btn.pressed {
+      background-color: rgba(0, 0, 0, 0.2) !important;
+    }
+
+    .face-id-icon {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      pointer-events: none;
+    }
+
+    .action-btn svg {
+      width: 32px;
+      height: 32px;
+      fill: none;
+      stroke: #000;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .forgot-btn {
+      background: none;
+      border: none;
+      font-size: 15px;
+      font-weight: 400;
+      color: #000;
+      cursor: pointer;
+      padding: 10px;
+      margin-bottom: 20px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* --- МОДАЛЬНОЕ ОКНО (iOS ALERT) --- */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.15);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+      z-index: 100;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .ios-alert {
+      width: 270px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 14px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+      animation: alertPop 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
+    }
+
+    @keyframes alertPop {
+      0% { transform: scale(1.15); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .alert-content {
+      padding: 18px 16px 16px 16px;
+    }
+
+    .alert-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: #000000;
+      margin-bottom: 6px;
+    }
+
+    .alert-description {
+      font-size: 13px;
+      font-weight: 400;
+      color: #000000;
+      line-height: 1.35;
+    }
+
+    .alert-buttons {
+      display: flex;
+      flex-direction: column;
+      border-top: 0.5px solid rgba(60, 60, 67, 0.29);
+    }
+
+    .alert-btn {
+      height: 44px;
+      background: transparent;
+      border: none;
+      font-size: 17px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.15s;
+    }
+
+    .alert-btn:active {
+      background-color: rgba(0, 0, 0, 0.08);
+    }
+
+    .alert-btn.authorize {
+      color: #ff3b30;
+      font-weight: 400;
+      border-bottom: 0.5px solid rgba(60, 60, 67, 0.29);
+    }
+
+    .alert-btn.cancel {
+      color: #007aff;
+      font-weight: 400;
+    }
+
+    .status-toast {
+      position: fixed;
+      top: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    .status-toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="status-toast" id="toast"></div>
+
+  <!-- ЭКРАН ПРИВЕТСТВИЯ СО СКРИНШОТОМ -->
+  <div class="welcome-screen" id="welcomeScreen">
+    <img src="ss.jpeg" class="welcome-img" alt="Приветственный экран">
+  </div>
+
+  <!-- ЭКРАН ВВОДА ПИН-КОДА -->
+  <div class="pin-container" id="pinContainer">
+    <div class="header-title">Код для входу</div>
+
+    <div class="dots-container">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+
+    <div class="keypad">
+      <button class="key-btn" data-key="1">1</button>
+      <button class="key-btn" data-key="2">2</button>
+      <button class="key-btn" data-key="3">3</button>
+      
+      <button class="key-btn" data-key="4">4</button>
+      <button class="key-btn" data-key="5">5</button>
+      <button class="key-btn" data-key="6">6</button>
+
+      <button class="key-btn" data-key="7">7</button>
+      <button class="key-btn" data-key="8">8</button>
+      <button class="key-btn" data-key="9">9</button>
+
+      <button class="key-btn action-btn" id="faceIdBtn">
+        <img src="Group.png" class="face-id-icon" alt="Face ID">
+      </button>
+
+      <button class="key-btn" data-key="0">0</button>
+
+      <button class="key-btn action-btn" id="backspaceBtn">
+        <svg viewBox="0 0 24 24">
+          <path d="M21 4H8l-7 8 7 8h13a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1z" />
+          <line x1="18" y1="9" x2="12" y2="15" />
+          <line x1="12" y1="9" x2="18" y2="15" />
+        </svg>
+      </button>
+    </div>
+
+    <button class="forgot-btn" id="forgotBtn">Не пам'ятаю код для входу</button>
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="ios-alert">
+      <div class="alert-content">
+        <div class="alert-title">Забули код для входу?</div>
+        <div class="alert-description">Пройдіть повторну авторизацію у застосунку</div>
+      </div>
+      <div class="alert-buttons">
+        <button class="alert-btn authorize" id="btnAuthorize">Авторизуватися</button>
+        <button class="alert-btn cancel" id="btnCancel">Скасувати</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // АВТОМАТИЧЕСКИЙ ПЕРЕХОД СО СКРИНШОТА НА ВВОД ПИН-КОДА
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const pinContainer = document.getElementById('pinContainer');
+
+        welcomeScreen.classList.add('hidden');
+        pinContainer.classList.add('visible');
+      }, 2000); // 2 секунды
+    });
+
+    let currentPin = '';
+    const maxPinLength = 4;
+
+    const pinContainer = document.getElementById('pinContainer');
+    const modalOverlay = document.getElementById('modalOverlay');
+
+    function updateDots() {
+      const dots = document.querySelectorAll('.dot');
+      dots.forEach((dot, index) => {
+        if (index < currentPin.length) {
+          dot.classList.add('filled');
+        } else {
+          dot.classList.remove('filled');
+        }
+      });
+
+      if (currentPin.length === maxPinLength) {
+        setTimeout(() => {
+          showToast(`Введён код: ${currentPin}`);
+          currentPin = '';
+          updateDots();
+        }, 150);
+      }
+    }
+
+    function pressKey(num) {
+      if (currentPin.length < maxPinLength) {
+        currentPin += num;
+        updateDots();
+      }
+    }
+
+    function deleteKey() {
+      if (currentPin.length > 0) {
+        currentPin = currentPin.slice(0, -1);
+        updateDots();
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+
+    // РАБОТА МОДАЛЬНОГО ОКНА
+    document.getElementById('forgotBtn').addEventListener('click', () => {
+      pinContainer.classList.add('blurred');
+      modalOverlay.classList.add('active');
+    });
+
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+
+    document.getElementById('btnAuthorize').addEventListener('click', () => {
+      closeModal();
+      showToast("Переход к повторной авторизации...");
+    });
+
+    function closeModal() {
+      pinContainer.classList.remove('blurred');
+      modalOverlay.classList.remove('active');
+    }
+
+    // МГНОВЕННОЕ ЧЕРНЕНИЕ ПРИ КАСАНИИ
+    document.querySelectorAll('.key-btn').forEach(btn => {
+      
+      const handleStart = (e) => {
+        e.preventDefault();
+        btn.classList.add('pressed');
+
+        const key = btn.getAttribute('data-key');
+        if (key !== null) {
+          pressKey(key);
+        } else if (btn.id === 'backspaceBtn') {
+          deleteKey();
+        } else if (btn.id === 'faceIdBtn') {
+          triggerBiometrics();
+        }
+      };
+
+      const handleEnd = () => {
+        btn.classList.remove('pressed');
+      };
+
+      btn.addEventListener('touchstart', handleStart, { passive: false });
+      btn.addEventListener('touchend', handleEnd);
+      btn.addEventListener('touchcancel', handleEnd);
+
+      btn.addEventListener('mousedown', handleStart);
+      btn.addEventListener('mouseup', handleEnd);
+      btn.addEventListener('mouseleave', handleEnd);
+    });
+
+    // FACE ID / TOUCH ID
+    async function triggerBiometrics() {
+      if (window.PublicKeyCredential && 
+          await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()) {
+        try {
+          showToast("Сканирование Face ID...");
+
+          const credential = await navigator.credentials.get({
+            publicKey: {
+              challenge: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]),
+              userVerification: "required",
+              timeout: 60000
+            }
+          });
+
+          showToast("Успешно авторизовано через Face ID!");
+        } catch (err) {
+          if (err.name === 'NotAllowedError') {
+            showToast("Сканирование отменено или не распознано");
+          } else {
+            showToast("Ошибка сканирования: " + err.message);
+          }
+        }
+      } else {
+        showToast("Реальный Face ID доступен только на устройстве с HTTPS/Safari");
+      }
+    }
+  </script>
+</body>
+</html>
